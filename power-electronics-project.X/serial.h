@@ -54,7 +54,15 @@ extern "C" {
 
 #endif	/* XC_HEADER_TEMPLATE_H */
 
-
-
+/**
+ * Blocking, synchronous call for writing 1 byte to serial.
+ * @param data byte to be written
+ */
+void txWriteByte(char data);
+/**
+ * Blocking, synchronous call waiting for 1 byte to be read from serial.
+ * @return data read.
+ */
+char rxReadByte()
 
 
