@@ -6,16 +6,10 @@
  * Revision history: 
  */
 
-#ifndef XC_HEADER_TEMPLATE_H
-#define	XC_HEADER_TEMPLATE_H
+#ifndef SERIAL_H
+#define	SERIAL_H
 
 #include <xc.h> // include processor files - each processor file is guarded.  
-
-// TODO Insert appropriate #include <>
-
-// TODO Insert C++ class definitions if appropriate
-
-// TODO Insert declarations
 
 // Comment a function and leverage automatic documentation with slash star star
 /**
@@ -54,6 +48,12 @@ extern "C" {
 
 #endif	/* XC_HEADER_TEMPLATE_H */
 
+#define MAIN_INST 0x60
+#define SOLAR_INST 0x61
+#define GRID_INST 0x62
+#define HYDRO_INST 0x63
+
+
 /**
  * Blocking, synchronous call for writing 1 byte to serial.
  * @param data byte to be written
@@ -63,6 +63,7 @@ void txWriteByte(char data);
  * Blocking, synchronous call waiting for 1 byte to be read from serial.
  * @return data read.
  */
-char rxReadByte()
+char rxReadByte();
 
+void sendSensorReadings(char type, int voltage, int current);
 
