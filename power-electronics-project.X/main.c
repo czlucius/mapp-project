@@ -11,21 +11,29 @@
 #include"lcd.h"
 #include"serial.h"
 #include<stdio.h>
+#include"delays.h"
 
 #define HIGH 0xD0
 // Port C is a 7 bit wide port.
-#define MAIN_PIN PORTCbits.RC0
-#define GRID_PIN PORTCbits.RC1
-#define HYDRO_PIN PORTCbits.RC2
-#define SOLAR_PIN PORTCbits.RC3
+#define MAIN_PIN_RELAY PORTCbits.RC0
+#define GRID_PIN_RELAY PORTCbits.RC1
+#define HYDRO_PIN_RELAY PORTCbits.RC2
+#define SOLAR_PIN_RELAY PORTCbits.RC3
 #define VALVE_PIN PORTCbits.RC4
+
+
+
 
 
 
 void onRxReceive(char data);
 
+void sendDataToAWS() {
+    
+}
 
-void __interrupt() isr(void) {
+
+void interrupt isr(void) {
     if (PIR1bits.RCIF == 1) {
         if(RCSTAbits.OERR) { 
             // Overflow error!
@@ -34,17 +42,13 @@ void __interrupt() isr(void) {
             NOP();
             RCSTAbits.CREN=1; // continuous receive enable
         } 
-        onRxReceive(RCREG);        
+        onRxReceive(RCREG);   
     }
     if (INTCONbits.TMR0IF == 1) {
         // TODO reset timer to 1 min.
         INTCONbits.TMR0IF = 0;
         sendDataToAWS();
     }
-}
-
-void sendDataToAWS() {
-    
 }
 
 
@@ -63,33 +67,52 @@ void sendDataToAWS() {
 |Turn water valve off|0x39|
  */
 
+
+int previousState[3] = {1,1,1};
 void onRxReceive(char data) {
+    char a[1];
+    a[0] = data; 
     
     switch (data) {
         case 0x30:
-            MAIN_PIN = 1;
+            previousState[0] =GRID_PIN_RELAY;
+            previousState[1] = HYDRO_PIN_RELAY;
+            previousState[2] = SOLAR_PIN_RELAY;
+            GRID_PIN_RELAY = 0;
+            HYDRO_PIN_RELAY = 0;
+            SOLAR_PIN_RELAY = 0;
+            
             break;
         case 0x31:
-            MAIN_PIN = 0;
+            GRID_PIN_RELAY = previousState[0];
+            HYDRO_PIN_RELAY = previousState[1];
+            SOLAR_PIN_RELAY = previousState[2];
             break;
         case 0x32:
-            GRID_PIN = 1;
+            GRID_PIN_RELAY = 1;
             break;
         case 0x33:
-            GRID_PIN = 0;
+            GRID_PIN_RELAY = 0;
             break;
         case 0x34:
-            HYDRO_PIN = 1;
-            break;
+           SOLAR_PIN_RELAY = 0;
+           break;
         case 0x35:
-            HYDRO_PIN = 0;
+            SOLAR_PIN_RELAY = 1;
             break;
         case 0x36:
-            VALVE_PIN = 1;
+            HYDRO_PIN_RELAY = 1;
             break;
         case 0x37:
+            HYDRO_PIN_RELAY = 0;
+            break;
+        case 0x38:
             VALVE_PIN = 1;
             break;
+        case 0x39:
+            VALVE_PIN = 1;
+            break;
+            
 
     }
     
@@ -97,16 +120,62 @@ void onRxReceive(char data) {
 
 
 
+void onetone(void) {
+    unsigned int k;
+    for (k = 0; k < 100; k++) 
+    {
+        delay_us(300);  // 100 - 3000 Change accordingly.
+        PORTCbits.RC0 = !PORTCbits.RC0; 
+    }
+    PORTCbits.RC0 = 0;
+}
+
+
+void timerInit() {
+    // 1 second for timer0.
+    TMR0H = 0x48;
+	TMR0L = 0xE5;
+     
+    T0CON = 0b00000111;    // bit7:0 Stop Timer0
+							// bit6:0 Timer0 as 16 bit timer
+							// bit5:0 Clock source is internal 
+							// bit4:0 Increment on lo to hi transition on TOCKI pin
+							// bit3:0 Prescaler output is assigned to Timer0  
+							// bit2-bit0:111 1:256 prescaler
+    INTCONbits.TMR0IF = 0;
+    // TODO: to calculate the bits and pre-scaler value for 1 min. 
+    
+    T0CONbits.TMR0ON = 1;	// Turn on timer
+    INTCONbits.TMR0IE = 1; // Turn on timer interrupts
+}
 
 
 void main(void) {
     
-    // 0: GV. 1: GC.
-    TRISAbits.TRISA0 = 1;
-    TRISAbits.TRISA1 = 1;
+    // For analog inputs
+    
+       // RA  54321
+    TRISA = 0b11111;
+    TRISE = 0b111;
+    
+    
+    // End analog inputs
+    
+    
     TRISBbits.TRISB0 = 1;
     TRISBbits.TRISB3 = 0;
     
+    TRISDbits.TRISD1 = 0;
+    
+    
+    
+    // For Serial Communication and Interrupts
+    
+    // TXREG: byte to transmit
+    // RCREG: byte received
+    // TXSTA: select modes for transmit
+    // RCSTA: select modes for receive
+    // PIR1: Interrupt Request flap 1. 2 BIT. TXIF (tranmission complete) RCIF (receiving complete)
     TRISCbits.TRISC6 = 0; // TX
     TRISCbits.TRISC7 = 1; // RX
     SPBRG = 77; // Baud Rate of 9600
@@ -115,47 +184,39 @@ void main(void) {
     
     INTCONbits.PEIE = 1;
     PIE1bits.RCIE = 1; // Enable interrupt on RX.
+    // End Serial
     
     
     
-    // bit5-2 0000 select channel 0 conversion 
-    // bit1	  A/D conversion status bit
-    //	      1- GO to starts the conversion
-    //	      0 - DONE when A/D is completed
-    // bit0   Set to 1 to power up A/D
-    ADCON1 = 0b00001100; // TODO: change as necessary.    
+
+    // Bit 7-6 unimplemented
+    // Bit 5 VCFG1 VREF-. We set to 0 by default.
+    // Bit 4 VCFG0 VREF+. We set to 1 by default.
+    // Bit 3-0 A/D Port config.
+    ADCON1 = 0b00000111; // TODO: change as necessary.    
     // --- 
     ADCON2 = 0b10010110; // bit7   : A/D Result Format. 0 Left, 1 Right justified
                         // bit5-3 : 010 acquisition time = 4 TAD
                         // bit2-0 : 110 conversion clock = Tosc / 16
     lcd_init();
     
+    timerInit();
     
-    
-    
-    T0CON = 0b10000100;
-    INTCONbits.TMR0IF = 0;
-    // TODO: to calculate the bits and pre-scaler value for 1 min. 
-    
-    
-    INTCONbits.TMR0IE = 1;
     
     INTCONbits.GIE = 1;
     
     
     
     
-    
-    // TXREG: byte to transmit
-    // RCREG: byte received
-    // TXSTA: select modes for transmit
-    // RCSTA: select modes for receive
-    // PIR1: Interrupt Request flap 1. 2 BIT. TXIF (tranmission complete) RCIF (receiving complete)
-//    while(1) {
-//        if ()
+
+//    while (1) {
+//        struct Value grid = {GRID_INST, 1022, 1022};
+//        sendSensorValue(grid, 1);
+//        struct Value hydro = {HYDRO_INST, 1022, 1022};
+//        sendSensorValue(hydro, 0);
+//        delay_ms(5000);
 //    }
-    
-    
+//    
     
     
     
@@ -163,6 +224,12 @@ void main(void) {
     
     return;
 }
+
+/*
+ * Hydro: Rail 1
+ * Grid: Rail 2
+ * Solar: Rail 3
+ */
 
 
 /*

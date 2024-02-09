@@ -9,7 +9,9 @@
 #ifndef SERIAL_H
 #define	SERIAL_H
 
-#include <xc.h> // include processor files - each processor file is guarded.  
+#include <xc.h> // include processor files - each processor file is guarded. 
+#include<stdio.h>
+#include "lcd.h"
 
 // Comment a function and leverage automatic documentation with slash star star
 /**
@@ -65,5 +67,13 @@ void txWriteByte(char data);
  */
 char rxReadByte();
 
-void sendSensorReadings(char type, int voltage, int current);
+struct Value {
+    char type;
+    int voltage;
+    int current;
+};
 
+void sendSensorReadings(char type, int voltage, int current, char contd);
+
+void sendSensorValue(struct Value value, char contd);
+//void sendSensorsAll(Value* valuePoint, char length);
