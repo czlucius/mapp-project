@@ -1,211 +1,172 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from '/vite.svg'
-import './App.css'
+import './App.css';
 import 'chartjs-adapter-moment';
-
 import {
     Chart as ChartJS,
-    ArcElement,
+    LineElement,
+    TimeScale,
+    Title,
     Tooltip,
-    Legend,
-    CategoryScale,
-    LinearScale,
-    PointElement,
-    LineElement, Title, TimeScale
+    Legend
 } from "chart.js";
-import { Doughnut } from "react-chartjs-2";
 import { Line } from 'react-chartjs-2';
+import { DynamoDBClient, QueryCommand } from "@aws-sdk/client-dynamodb";
+import * as keys from "./keys.json";
+import { useState, useEffect } from 'react';
 
-import { DynamoDBClient, GetItemCommand, QueryCommand } from "@aws-sdk/client-dynamodb";
-import * as keys from "./keys.json"
-
-const ddb = new DynamoDBClient({
-  region: "us-east-1",
-  credentials: {
-    accessKeyId: keys.aws_access_key_id,
-    secretAccessKey: keys.aws_secret_access_key    
-  }
-});
-
-async function a() {
-  const command = new QueryCommand({
-    TableName: "yourTableName",
-    KeyConditionExpression: "#pk = :pk", // Filter by partition key
-    ExpressionAttributeNames: { "#pk": "typ" },
-    ExpressionAttributeValues: { ":pk": { S: "grid" } },
-  });
-  const data = await ddb.send(command);
-  const items = data.Items;
-  console.log(items)
-  
-}
+ChartJS.register(
+    LineElement,
+    TimeScale,
+    Title,
+    Tooltip,
+    Legend
+);
 
 interface ValueTime {
-  value: number
-  time: number
+    value: number;
+    time: number;
 }
 
-const Source = ({voltage, current, type}: {
-  voltage: ValueTime[],
-  current: ValueTime[],
-  type: string
+const Source = ({ voltage, current, type }: {
+    voltage: ValueTime[],
+    current: ValueTime[],
+    type: string
 }) => {
-  navigator.aa = a
-  const vT = voltage.map(elem => {
-    return elem.time
-  })
-  const vV = voltage.map(elem => elem.value)
-  const cT = current.map(elem => elem.time)
-  const cV = current.map(elem => elem.value)
+    const vT = voltage.map(elem => elem.time);
+    const vV = voltage.map(elem => elem.value);
+    const cT = current.map(elem => elem.time);
+    const cV = current.map(elem => elem.value);
 
-  const dimOpts = {
-    width:"500px"
-  }
-  return (
-    <div style={{
-      display: "flex",
-      flexDirection: "row"
-    }}>
-      <div style={dimOpts}> 
+    const dimOpts = {
+        width: "500px"
+    };
 
-      <Line
-      
-      
-        options={{
-          scales: {
-            x: {
-              type: 'time'
-            }
-          }
-        }}
-        data={{
-          labels: vT,
-          datasets: [{
-            label: `Voltage (${type})`,
-            data: vV,
-            backgroundColor: "blue", 
-            borderColor: "blue"
-        }],
-          
-        }}
-      />
-      </div>
+    return (
+        <div style={{
+            display: "flex",
+            flexDirection: "row"
+        }}>
+            <div style={dimOpts}>
+                <Line
+                    options={{
+                        scales: {
+                            x: {
+                                type: 'time'
+                            }
+                        }
+                    }}
+                    data={{
+                        labels: vT,
+                        datasets: [{
+                            label: `Voltage (${type})`,
+                            data: vV,
+                            backgroundColor: "blue",
+                            borderColor: "blue"
+                        }],
+                    }}
+                />
+            </div>
 
-    <div style={{
-      ...dimOpts
-    }}>
-      
-
-    <Line
-
-      
-      options={{
-        scales: {
-          x: {
-            type: 'time'
-          }
-        }
-      }}
-      data={{
-        labels: cT,
-        datasets: [{
-          label: `Current (${type})`,
-          data: cV,
-          backgroundColor: "magenta", 
-          borderColor: "magenta"
-      }],
-        
-      }}
-    />
-    
-    </div>
-    </div>
-  )
-
-}
+            <div style={{ ...dimOpts }}>
+                <Line
+                    options={{
+                        scales: {
+                            x: {
+                                type: 'time'
+                            }
+                        }
+                    }}
+                    data={{
+                        labels: cT,
+                        datasets: [{
+                            label: `Current (${type})`,
+                            data: cV,
+                            backgroundColor: "magenta",
+                            borderColor: "magenta"
+                        }],
+                    }}
+                />
+            </div>
+        </div>
+    );
+};
 
 function App() {
-  const [count, setCount] = useState(0)
-    // ChartJS.register(
-    //     CategoryScale,
-    //     LinearScale,
-    //     PointElement,
-    //     LineElement,
-    //     TimeScale,
-    //     Title,
-    //     Tooltip,
-    //     Legend
-    // );
+    const [voltageData, setVoltageData] = useState<ValueTime[]>([]);
+    const [currentData, setCurrentData] = useState<ValueTime[]>([]);
+    const [error, setError] = useState<string | null>(null); // Add state for error
 
+    useEffect(() => {
+        const fetchData = async () => {
+            try {
+                const ddb = new DynamoDBClient({
+                    region: "us-east-1",
+                    credentials: {
+                        accessKeyId: keys.aws_access_key_id,
+                        secretAccessKey: keys.aws_secret_access_key,
+                        sessionToken: keys.aws_session_token
+                    }
+                });
 
-    ChartJS.register(
-        CategoryScale,
-        LinearScale,
-        PointElement,
-        LineElement,
-        TimeScale,
-        Title,
-        Tooltip,
-        Legend
-    );
+                const command = new QueryCommand({
+                    TableName: "mapp_db",
+                    KeyConditionExpression: "#pk = :pk", // Filter by partition key
+                    ExpressionAttributeNames: { "#pk": "typ" },
+                    ExpressionAttributeValues: { ":pk": { S: "grid" } },
+                });
+                const data = await ddb.send(command);
+                const items = data.Items;
 
+                // Extract voltage and current data from items
+                const newVoltageData: ValueTime[] = items?.map((item: any) => ({
+                    value: parseFloat(item?.voltage?.N || '0'), // Use optional chaining and default value to handle potential undefined or null values
+                    time: parseInt(item?.time?.N || '0')
+                })) || []; // Ensure a default empty array if items is undefined
 
-  return (
-    <>
-      <div>
-          {/*<Doughnut data={{*/}
-          {/*    labels: ['Red', 'Blue', 'Yellow', 'Green', 'Purple', 'Orange'],*/}
-          {/*    datasets: [{*/}
-          {/*        label: '# of Votes',*/}
-          {/*        data: [12, 19, 3, 5, 2, 3],*/}
-          {/*        borderWidth: 1*/}
-          {/*    }]*/}
-          {/*}} />*/}
+                const newCurrentData: ValueTime[] = items?.map((item: any) => ({
+                    value: parseFloat(item?.current?.N || '0'), // Use optional chaining and default value to handle potential undefined or null values
+                    time: parseInt(item?.time?.N || '0')
+                })) || []; // Ensure a default empty array if items is undefined
 
+                // Update state with the retrieved data
+                setVoltageData(newVoltageData);
+                setCurrentData(newCurrentData);
+                setError(null); // Clear any previous errors
+            } catch (error: any) {
+                console.error('Error fetching data:', error);
+                setError(error.message); // Set the error message in state
+            }
+        };
 
+        // Fetch data initially
+        fetchData();
 
+        // Fetch data at 5-second intervals
+        const intervalId = setInterval(fetchData, 5000);
 
-          <Source
-            voltage={[{
-              value: 5, time: 1632664468243
-            }, {
-              value: 4.9, time: 1642665478243
-            }]}
-            current={[{
-              value: 5, time: 1632664468243
-            }, {
-              value: 4.9, time: 1642665478243
-            }]}
-            type='Grid'
-            
+        // Clean up interval on component unmount
+        return () => clearInterval(intervalId);
+    }, []); // Empty dependency array to run effect only once on mount
+
+    // Render error message if there is an error
+    if (error) {
+        return (
+            <div>
+                <h2>Error</h2>
+                <p>{error}</p>
+            </div>
+        );
+    }
+
+    // Render the chart if there is no error
+    return (
+        <div>
+            <Source
+                voltage={voltageData}
+                current={currentData}
+                type='Grid'
             />
-
-{/* 
-          <Line
-              data={{
-                  labels: ['Jun', 'Jul', 'Aug'],
-                  datasets: [
-                      {
-
-                          id: 1,
-                          label: 'a',
-                          data: [5, 6, 7],backgroundColor: "blue", borderColor: "blue"
-                      },
-                      {
-
-                          id: 2,
-                          label: 'b',
-                          data: [7, 6, 5],
-                      }
-                  ],
-              }}
-          /> */}
-
-
         </div>
-    </>
-  )
+    );
 }
 
-export default App
+export default App;
