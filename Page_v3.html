@@ -273,16 +273,35 @@
             document.getElementById(`${source}Table`).style.display = 'block';
         }
     }
+    const codeMap = {
+        "grid": {
+            true: "2",
+            false: "3"
+        }, "solar": {
+            true: "4",
+            false: "5"
+        }, "hydro": {
+            true: "6",
+            false: "7"
+        }, "main": {
+            true: "8",
+            false: "9"
+        }
+    }
+
+
 
     function toggleChart(source, on) {
         const button = on ? 'on' : 'off';
+        const codeByte = codeMap[source][on]
         const requestBody = {
             action: 'toggle',
             source: source,
-            state: on ? 'on' : 'off'
+            state: on ? 'on' : 'off',
+            message: codeByte
         };
 
-        fetch('https://jo4nqgjv6j.execute-api.us-east-1.amazonaws.com/1/Sechduler_lambda', {
+        fetch("https://d6fnygnvkii6q3qwn6wpmqi26i0hnfqm.lambda-url.us-east-1.on.aws/", {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
@@ -294,42 +313,41 @@
                     throw new Error('Failed to toggle relay state');
                 }
                 alert(`${source} turned ${button}`);
-            })
-            .catch(error => {
+            }).catch(error => {
                 console.error('Error toggling relay state:', error);
                 alert(`Failed to toggle ${source} relay state`);
             });
     }
 
-    // Initialize MQTT client
-    const mqttClient = mqtt.connect('a31t0jqqfkawwj-ats.iot.us-east-1.amazonaws.com');
-
-    // Subscribe to topics
-    mqttClient.on('connect', function () {
-        mqttClient.subscribe(`home/${source}`);
-    });
-
-    // Handle incoming messages
-    mqttClient.on('message', function (topic, message) {
-        // Parse the message JSON
-        const payload = JSON.parse(message.toString());
-        const source = topic.split('/')[1];
-        const action = payload.action;
-
-        // Handle the message based on action
-        if (action === 'toggle') {
-            // Toggle the source based on the received message
-            const state = payload.state === 'on';
-            toggleChart(source, state);
-        }
-    });
-
-    // Function to send toggle command via MQTT
-    function sendToggleCommand(source, state) {
-        const action = state ? 'on' : 'off';
-        const message = JSON.stringify({ action: 'toggle', state: action });
-        mqttClient.publish(`home/${source}`, message);
-    }
+    // // Initialize MQTT client
+    // const mqttClient = mqtt.connect('a31t0jqqfkawwj-ats.iot.us-east-1.amazonaws.com');
+    //
+    // // Subscribe to topics
+    // mqttClient.on('connect', function () {
+    //     mqttClient.subscribe(`home/${source}`);
+    // });
+    //
+    // // Handle incoming messages
+    // mqttClient.on('message', function (topic, message) {
+    //     // Parse the message JSON
+    //     const payload = JSON.parse(message.toString());
+    //     const source = topic.split('/')[1];
+    //     const action = payload.action;
+    //
+    //     // Handle the message based on action
+    //     if (action === 'toggle') {
+    //         // Toggle the source based on the received message
+    //         const state = payload.state === 'on';
+    //         toggleChart(source, state);
+    //     }
+    // });
+    //
+    // // Function to send toggle command via MQTT
+    // function sendToggleCommand(source, state) {
+    //     const action = state ? 'on' : 'off';
+    //     const message = JSON.stringify({ action: 'toggle', state: action });
+    //     mqttClient.publish(`home/${source}`, message);
+    // }
 
 </script>
 </body>
