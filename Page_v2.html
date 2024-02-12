@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DynamoDB Data</title>
+  <!-- Chart.js CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <!-- Moment.js CDN -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.29.1/moment.min.js"></script>
+  <!-- Chart.js Moment.js Adapter -->
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-moment@1.0.2/dist/chartjs-adapter-moment.min.js"></script>
+  <style>
+    table {
+      border-collapse: collapse;
+      width: 100%;
+      margin-bottom: 20px;
+    }
+    th, td {
+      border: 1px solid #dddddd;
+      text-align: left;
+      padding: 8px;
+    }
+    th {
+      background-color: #f2f2f2;
+    }
+    .chart-container {
+      width: 50%;
+      margin: 0 auto;
+    }
+    .chart-column {
+      float: left;
+      width: 50%;
+    }
+    .table-container {
+      display: none;
+    }
+  </style>
+</head>
+<body>
+<div id="app">
+  <h1>DynamoDB Data</h1>
+  <div class="buttons">
+    <button onclick="toggleDisplay('all')">All</button>
+    <button onclick="toggleDisplay('grid')">Grid</button>
+    <button onclick="toggleDisplay('solar')">Solar</button>
+    <button onclick="toggleDisplay('hydro')">Hydro</button>
+  </div>
+  <div id="allCharts" class="chart-container">
+    <div class="chart-column" id="gridChart">
+      <h2>Grid Chart</h2>
+      <canvas id="gridCurrentChart"></canvas>
+      <canvas id="gridVoltageChart"></canvas>
+    </div>
+    <div class="chart-column" id="solarChart">
+      <h2>Solar Chart</h2>
+      <canvas id="solarCurrentChart"></canvas>
+      <canvas id="solarVoltageChart"></canvas>
+    </div>
+    <div class="chart-column" id="hydroChart">
+      <h2>Hydro Chart</h2>
+      <canvas id="hydroCurrentChart"></canvas>
+      <canvas id="hydroVoltageChart"></canvas>
+    </div>
+  </div>
+
+  <div class="table-container" id="gridTable">
+    <h2>Grid Data</h2>
+    <table id="gridDataTable">
+      <thead>
+      <tr>
+        <th>Time</th>
+        <th>Current</th>
+        <th>Voltage</th>
+      </tr>
+      </thead>
+      <tbody>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="table-container" id="solarTable">
+    <h2>Solar Data</h2>
+    <table id="solarDataTable">
+      <thead>
+      <tr>
+        <th>Time</th>
+        <th>Current</th>
+        <th>Voltage</th>
+      </tr>
+      </thead>
+      <tbody>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="table-container" id="hydroTable">
+    <h2>Hydro Data</h2>
+    <table id="hydroDataTable">
+      <thead>
+      <tr>
+        <th>Time</th>
+        <th>Current</th>
+        <th>Voltage</th>
+      </tr>
+      </thead>
+      <tbody>
+      </tbody>
+    </table>
+  </div>
+</div>
+<script>
+  document.addEventListener('DOMContentLoaded', async function() {
+    try {
+      const gridResponse = await fetchData('grid');
+      const solarResponse = await fetchData('solar');
+      const hydroResponse = await fetchData('hydro');
+
+      renderChart('grid', gridResponse);
+      renderChart('solar', solarResponse);
+      renderChart('hydro', hydroResponse);
+
+      toggleDisplay('all');
+
+      document.querySelectorAll('.buttons button').forEach(btn => {
+        btn.addEventListener('click', function() {
+          const source = this.innerText.toLowerCase();
+          toggleDisplay(source);
+        });
+      });
+    } catch (error) {
+      console.error('Error fetching data:', error);
+      document.getElementById('app').innerHTML = '<div>Error fetching data. Please try again later.</div>';
+    }
+  });
+
+  async function fetchData(source) {
+    const response = await fetch('https://zv7wcpsz7g.execute-api.us-east-1.amazonaws.com/default/ddb_io', {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ action: 'query', keyValue: source })
+    });
+    return await response.json();
+  }
+
+  function renderChart(source, data) {
+    const timeLabels = data.Items.map(item => moment(parseInt(item.time.N)).format('YYYY-MM-DD HH:mm:ss'));
+    const currentData = data.Items.map(item => parseFloat(item.current.N));
+    const voltageData = data.Items.map(item => parseFloat(item.voltage.N));
+
+    const currentChartCanvas = document.getElementById(`${source}CurrentChart`);
+    const voltageChartCanvas = document.getElementById(`${source}VoltageChart`);
+    const dataTable = document.getElementById(`${source}DataTable`).getElementsByTagName('tbody')[0];
+
+    // Render charts
+    new Chart(currentChartCanvas, {
+      type: 'line',
+      data: {
+        labels: timeLabels,
+        datasets: [{
+          label: 'Current',
+          data: currentData,
+          borderColor: 'rgb(75, 192, 192)',
+          fill: false,
+        }]
+      },
+    });
+
+    new Chart(voltageChartCanvas, {
+      type: 'line',
+      data: {
+        labels: timeLabels,
+        datasets: [{
+          label: 'Voltage',
+          data: voltageData,
+          borderColor: 'rgb(255, 99, 132)',
+          fill: false,
+        }]
+      },
+    });
+
+    // Populate table
+    dataTable.innerHTML = '';
+    for (let i = 0; i < timeLabels.length; i++) {
+      const row = document.createElement('tr');
+      row.innerHTML = `
+            <td>${timeLabels[i]}</td>
+            <td>${currentData[i]}</td>
+            <td>${voltageData[i]}</td>
+        `;
+      dataTable.appendChild(row);
+    }
+  }
+
+
+
+  function toggleDisplay(source) {
+    const chartContainers = document.querySelectorAll('.chart-container .chart-column');
+    const tableContainers = document.querySelectorAll('.table-container');
+
+    chartContainers.forEach(container => {
+      container.style.display = 'none';
+    });
+
+    tableContainers.forEach(container => {
+      container.style.display = 'none';
+    });
+
+    if (source === 'all') {
+      chartContainers.forEach(container => {
+        container.style.display = 'block';
+      });
+      tableContainers.forEach(container => {
+        container.style.display = 'none';
+      });
+    } else {
+      document.getElementById(`${source}Chart`).style.display = 'block';
+      document.getElementById(`${source}Table`).style.display = 'block';
+    }
+  }
+
+</script>
+</body>
+</html>
