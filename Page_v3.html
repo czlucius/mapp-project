@@ -162,8 +162,32 @@
             </tbody>
         </table>
     </div>
+
+    <button onclick="a('8')">Open valve</button>
+       <button onclick="a('9')">Close valve</button>
 </div>
 <script>
+function a(arg) {
+const requestBody = {
+    message: arg
+}
+    fetch("https://d6fnygnvkii6q3qwn6wpmqi26i0hnfqm.lambda-url.us-east-1.on.aws/", {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(requestBody)
+        })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Failed to toggle relay state');
+                }
+                alert(`${source} turned ${button}`);
+            }).catch(error => {
+                console.error('Error toggling relay state:', error);
+                alert(`Failed to toggle ${source} relay state`);
+            });
+}
     document.addEventListener('DOMContentLoaded', async function() {
         try {
             const gridResponse = await fetchData('grid');
@@ -275,17 +299,17 @@
     }
     const codeMap = {
         "grid": {
-            true: "2",
-            false: "3"
+            false: "2",
+            true: "3"
         }, "solar": {
             true: "4",
             false: "5"
         }, "hydro": {
-            true: "6",
-            false: "7"
+            false: "6",
+            true: "7"
         }, "main": {
-            true: "8",
-            false: "9"
+            false: "8",
+            true: "9"
         }
     }
 
